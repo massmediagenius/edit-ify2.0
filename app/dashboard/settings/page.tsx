@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
 type Tab = "profile" | "payout" | "notifications";
-type PayoutMethod = "paypal" | "wise" | "bank";
+type PayoutMethod = "paypal" | "wise" | "bank" | "crypto";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "profile", label: "Profile" },
@@ -18,6 +18,17 @@ const PAYOUT_METHODS: { id: PayoutMethod; label: string; desc: string }[] = [
   { id: "paypal", label: "PayPal", desc: "Receive via PayPal email" },
   { id: "wise", label: "Wise", desc: "International transfers" },
   { id: "bank", label: "Bank Transfer", desc: "Direct bank deposit" },
+  { id: "crypto", label: "Crypto", desc: "Bitcoin, ETH, USDT & more" },
+];
+
+const CRYPTO_COINS = [
+  { value: "USDT-TRC20", label: "USDT — TRC-20 (Tron)" },
+  { value: "USDT-ERC20", label: "USDT — ERC-20 (Ethereum)" },
+  { value: "USDC-ERC20", label: "USDC — ERC-20 (Ethereum)" },
+  { value: "USDC-SOL",   label: "USDC — Solana (SPL)" },
+  { value: "BTC",        label: "Bitcoin (BTC)" },
+  { value: "ETH",        label: "Ethereum (ETH)" },
+  { value: "SOL",        label: "Solana (SOL)" },
 ];
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NGN", "GHS", "KES", "PHP"];
@@ -48,6 +59,8 @@ export default function SettingsPage() {
   const [bankAccount, setBankAccount] = useState("");
   const [bankRouting, setBankRouting] = useState("");
   const [bankName, setBankName] = useState("");
+  const [cryptoAddress, setCryptoAddress] = useState("");
+  const [cryptoCoin, setCryptoCoin] = useState("USDT-TRC20");
 
   // Notifications
   const [notifs, setNotifs] = useState<Record<string, boolean>>(
@@ -76,6 +89,8 @@ export default function SettingsPage() {
       setBankAccount(d.account ?? "");
       setBankRouting(d.routing ?? "");
       setBankName(d.bank ?? "");
+      setCryptoAddress(d.address ?? "");
+      setCryptoCoin(d.coin ?? "USDT-TRC20");
     }
     load();
   }, []);
@@ -96,6 +111,7 @@ export default function SettingsPage() {
     let details: Record<string, string> = {};
     if (method === "paypal") details = { email: ppEmail };
     else if (method === "wise") details = { email: wiseEmail, currency: wiseCurrency };
+    else if (method === "crypto") details = { address: cryptoAddress, coin: cryptoCoin };
     else details = { holder: bankHolder, account: bankAccount, routing: bankRouting, bank: bankName };
 
     const supabase = createClient();
@@ -170,7 +186,7 @@ export default function SettingsPage() {
       {/* Payout tab */}
       {tab === "payout" && (
         <div className="space-y-5">
-          <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="grid grid-cols-2 gap-2 mb-2">
             {PAYOUT_METHODS.map((m) => (
               <button
                 key={m.id}
@@ -225,6 +241,35 @@ export default function SettingsPage() {
               <div className="col-span-2">
                 <label className="block text-sm text-text-secondary mb-1.5">Bank Name</label>
                 <input value={bankName} onChange={(e) => setBankName(e.target.value)} className={inputCls} placeholder="e.g. Chase" />
+              </div>
+            </div>
+          )}
+
+          {method === "crypto" && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-text-secondary mb-1.5">Coin & Network</label>
+                <select value={cryptoCoin} onChange={(e) => setCryptoCoin(e.target.value)} className={inputCls}>
+                  {CRYPTO_COINS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-text-muted mt-1">
+                  Make sure your wallet supports the network you select — sending to the wrong network results in lost funds.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm text-text-secondary mb-1.5">Wallet Address</label>
+                <input
+                  value={cryptoAddress}
+                  onChange={(e) => setCryptoAddress(e.target.value)}
+                  className={inputCls}
+                  placeholder="e.g. TRx7NHqjeKQxGTCi8q8ZY4pL13...  "
+                  spellCheck={false}
+                />
+              </div>
+              <div className="bg-accent-yellow/5 border border-accent-yellow/20 rounded-xl px-4 py-3 text-xs text-accent-yellow leading-relaxed">
+                Double-check your wallet address before saving. Payouts sent to a wrong address cannot be recovered.
               </div>
             </div>
           )}
