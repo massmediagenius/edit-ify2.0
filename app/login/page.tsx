@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 
 function friendlyError(msg: string): string {
   if (msg.includes("Invalid login credentials")) return "Incorrect email or password. Please try again.";
-  if (msg.includes("Email not confirmed")) return "Please confirm your email address before signing in.";
+  if (msg.includes("Email not confirmed") || msg.includes("confirm your email")) return "Check your inbox and confirm your email first — or ask the admin to disable email confirmation in Supabase.";
   if (msg.includes("rate limit") || msg.includes("too many")) return "Too many attempts. Please wait a moment and try again.";
   if (msg.includes("Unable to validate email") || msg.includes("invalid email")) return "Please enter a valid email address.";
   if (msg.includes("network") || msg.includes("fetch")) return "Connection error. Check your internet and try again.";
