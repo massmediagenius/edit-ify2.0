@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Download, Film, Image, Music, File, FolderOpen, X, Play, ExternalLink } from "lucide-react";
+import { Search, Download, Film, Image, Music, File, FolderOpen, X, Play, ExternalLink, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { HelpTip } from "../_components/HelpTip";
@@ -68,8 +68,14 @@ async function forceDownload(url: string, fileName: string, isDrive: boolean) {
 }
 
 // ── Thumbnail component ──────────────────────────────────────────────────────
-function Thumb({ file, Icon }: { file: UnifiedFile; Icon: React.ElementType }) {
+function Thumb({ file, Icon, onDownloadStart, onDownloadEnd }: {
+  file: UnifiedFile;
+  Icon: React.ElementType;
+  onDownloadStart?: () => void;
+  onDownloadEnd?: () => void;
+}) {
   const [imgFailed, setImgFailed] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Only attempt a thumbnail if Drive gave us a thumbnailLink — otherwise show icon
   const driveThumbSrc = file.source === "drive" && file.driveId && file.thumbnailLink
@@ -79,6 +85,16 @@ function Thumb({ file, Icon }: { file: UnifiedFile; Icon: React.ElementType }) {
   const downloadUrl = file.source === "drive" && file.driveId
     ? getDriveDownloadUrl(file.driveId)
     : file.fileUrl ?? "#";
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (isDownloading) return;
+    setIsDownloading(true);
+    onDownloadStart?.();
+    await forceDownload(downloadUrl, file.name, file.source === "drive");
+    setIsDownloading(false);
+    onDownloadEnd?.();
+  }
 
   function renderMedia() {
     // Drive files — use thumbnail image
@@ -153,10 +169,14 @@ function Thumb({ file, Icon }: { file: UnifiedFile; Icon: React.ElementType }) {
           <Play className="w-4 h-4 text-white ml-0.5" />
         </div>
         <button
-          onClick={(e) => { e.stopPropagation(); forceDownload(downloadUrl, file.name, file.source === "drive"); }}
-          className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-accent-cyan/60 transition-colors"
+          onClick={handleDownload}
+          disabled={isDownloading}
+          className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-accent-cyan/60 transition-colors disabled:cursor-not-allowed"
         >
-          <Download className="w-4 h-4 text-white" />
+          {isDownloading
+            ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+            : <Download className="w-4 h-4 text-white" />
+          }
         </button>
       </div>
     </div>
@@ -164,7 +184,14 @@ function Thumb({ file, Icon }: { file: UnifiedFile; Icon: React.ElementType }) {
 }
 
 // ── Preview modal ─────────────────────────────────────────────────────────────
-function PreviewModal({ file, onClose }: { file: UnifiedFile; onClose: () => void }) {
+function PreviewModal({ file, onClose, onDownloadStart, onDownloadEnd }: {
+  file: UnifiedFile;
+  onClose: () => void;
+  onDownloadStart?: () => void;
+  onDownloadEnd?: () => void;
+}) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -175,6 +202,15 @@ function PreviewModal({ file, onClose }: { file: UnifiedFile; onClose: () => voi
   const downloadUrl = file.source === "drive" && file.driveId
     ? getDriveDownloadUrl(file.driveId)
     : file.fileUrl ?? "#";
+
+  async function handleDownload() {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    onDownloadStart?.();
+    await forceDownload(downloadUrl, file.name, file.source === "drive");
+    setIsDownloading(false);
+    onDownloadEnd?.();
+  }
 
   const previewSrc = file.source === "drive" && file.driveId
     ? getDrivePreviewUrl(file.driveId)
@@ -190,9 +226,13 @@ function PreviewModal({ file, onClose }: { file: UnifiedFile; onClose: () => voi
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => forceDownload(downloadUrl, file.name, file.source === "drive")}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-cyan text-background text-xs font-semibold rounded-lg hover:bg-accent-cyan/90 transition-colors">
-              <Download className="w-3.5 h-3.5" /> Download
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-cyan text-background text-xs font-semibold rounded-lg hover:bg-accent-cyan/90 transition-colors disabled:opacity-70 disabled:cursor-not-allowed min-w-[100px] justify-center">
+              {isDownloading
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Preparing…</>
+                : <><Download className="w-3.5 h-3.5" /> Download</>
+              }
             </button>
             <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-surface-raised flex items-center justify-center transition-colors">
               <X className="w-4 h-4 text-text-secondary" />
@@ -215,10 +255,14 @@ function PreviewModal({ file, onClose }: { file: UnifiedFile; onClose: () => voi
             <div className="flex flex-col items-center justify-center h-48 gap-3">
               <File className="w-12 h-12 text-text-muted" />
               <button
-                onClick={() => forceDownload(downloadUrl, file.name, file.source === "drive")}
-                className="flex items-center gap-2 text-accent-cyan text-sm hover:underline"
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="flex items-center gap-2 text-accent-cyan text-sm hover:underline disabled:opacity-70"
               >
-                <ExternalLink className="w-4 h-4" /> Download file
+                {isDownloading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing…</>
+                  : <><ExternalLink className="w-4 h-4" /> Download file</>
+                }
               </button>
             </div>
           )}
@@ -238,6 +282,7 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true);
   const [previewFile, setPreviewFile] = useState<UnifiedFile | null>(null);
   const [page, setPage] = useState(1);
+  const [isDownloadingFile, setIsDownloadingFile] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -307,7 +352,22 @@ export default function AssetsPage() {
 
   return (
     <>
-      {previewFile && <PreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
+      {previewFile && (
+        <PreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+          onDownloadStart={() => setIsDownloadingFile(true)}
+          onDownloadEnd={() => setIsDownloadingFile(false)}
+        />
+      )}
+
+      {/* Download preparing toast */}
+      {isDownloadingFile && (
+        <div className="fixed bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 bg-surface-raised border border-border px-4 py-2.5 rounded-full shadow-xl text-sm text-text-primary pointer-events-none">
+          <Loader2 className="w-4 h-4 text-accent-cyan animate-spin shrink-0" />
+          Preparing your download…
+        </div>
+      )}}
 
       {/* Mobile: horizontal folder scroll */}
       <div className="md:hidden flex gap-2 overflow-x-auto px-4 pt-4 pb-3 border-b border-border scrollbar-hide">
@@ -434,7 +494,12 @@ export default function AssetsPage() {
                       className="group bg-surface border border-border rounded-xl overflow-hidden hover:border-accent-cyan/30 transition-all duration-200 cursor-pointer"
                       onClick={() => setPreviewFile(file)}
                     >
-                      <Thumb file={file} Icon={Icon} />
+                      <Thumb
+                        file={file}
+                        Icon={Icon}
+                        onDownloadStart={() => setIsDownloadingFile(true)}
+                        onDownloadEnd={() => setIsDownloadingFile(false)}
+                      />
                       <div className="p-3">
                         <p className="text-text-primary text-xs font-medium truncate">{file.name}</p>
                         <div className="flex items-center justify-between mt-1">
