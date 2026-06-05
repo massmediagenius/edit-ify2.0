@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, FolderOpen, Megaphone, MessageSquare,
-  DollarSign, Settings, Upload, LogOut, HelpCircle,
+  DollarSign, Settings, Upload, LogOut, HelpCircle, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -24,6 +24,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [profile, setProfile] = useState<{ full_name: string } | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -36,6 +37,15 @@ export function Sidebar() {
     load();
   }, []);
 
+  useEffect(() => {
+    function handleOpen() { setMobileOpen(true); }
+    window.addEventListener("editify:open-nav", handleOpen);
+    return () => window.removeEventListener("editify:open-nav", handleOpen);
+  }, []);
+
+  // Close drawer on route change
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -46,12 +56,8 @@ export function Sidebar() {
     ? profile.full_name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
     : "?";
 
-  return (
-    <aside className="fixed left-0 top-0 h-full w-[220px] bg-surface border-r border-border flex flex-col z-20">
-      <div className="flex items-center px-5 py-4 border-b border-border">
-        <img src="/editify-logo.svg" alt="Edit-ify" className="h-7" />
-      </div>
-
+  const navContent = (
+    <>
       <nav className="flex-1 py-4 px-3 flex flex-col gap-0.5 overflow-y-auto">
         {NAV.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
@@ -98,6 +104,37 @@ export function Sidebar() {
           Logout
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex fixed left-0 top-0 h-full w-[220px] bg-surface border-r border-border flex-col z-20">
+        <div className="flex items-center px-5 py-4 border-b border-border">
+          <img src="/editify-logo.svg" alt="Edit-ify" className="h-7" />
+        </div>
+        {navContent}
+      </aside>
+
+      {/* Mobile drawer overlay */}
+      {mobileOpen && (
+        <>
+          <div
+            className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="md:hidden fixed left-0 top-0 h-full w-[280px] bg-surface border-r border-border flex flex-col z-50">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <img src="/editify-logo.svg" alt="Edit-ify" className="h-7" />
+              <button onClick={() => setMobileOpen(false)} className="w-8 h-8 rounded-lg hover:bg-surface-raised flex items-center justify-center text-text-muted transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {navContent}
+          </aside>
+        </>
+      )}
+    </>
   );
 }

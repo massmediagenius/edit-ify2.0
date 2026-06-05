@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, ChevronDown, User, Settings, LogOut } from "lucide-react";
+import { Bell, ChevronDown, User, Settings, LogOut, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -34,19 +34,34 @@ export function TopBar() {
     : "?";
 
   return (
-    <header className="fixed top-0 left-[220px] right-0 h-14 bg-surface border-b border-border z-20 flex items-center justify-between px-6">
+    <header className="fixed top-0 left-0 md:left-[220px] right-0 h-14 bg-surface border-b border-border z-20 flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-surface-raised rounded-lg px-4 py-1.5">
-          <span className="text-xs text-text-muted">Total Earned</span>
-          <span className="text-sm font-bold text-accent-green">${(profile?.total_earned ?? 0).toFixed(2)}</span>
-        </div>
-        <div className="flex items-center gap-2 bg-surface-raised rounded-lg px-4 py-1.5">
-          <span className="text-xs text-text-muted">Pending</span>
-          <span className="text-sm font-bold text-accent-orange">${(profile?.pending_balance ?? 0).toFixed(2)}</span>
-        </div>
-        <div className="flex items-center gap-2 bg-surface-raised rounded-lg px-4 py-1.5">
-          <span className="text-xs text-text-muted">Available</span>
-          <span className="text-sm font-bold text-accent-cyan">${(profile?.approved_balance ?? 0).toFixed(2)}</span>
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent("editify:open-nav"))}
+          className="md:hidden p-2 rounded-lg hover:bg-surface-raised transition-colors text-text-secondary"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Logo — mobile only */}
+        <img src="/editify-logo.svg" alt="Edit-ify" className="md:hidden h-6" />
+
+        {/* Balance stats — desktop only */}
+        <div className="hidden md:flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-surface-raised rounded-lg px-4 py-1.5">
+            <span className="text-xs text-text-muted">Total Earned</span>
+            <span className="text-sm font-bold text-accent-green">${(profile?.total_earned ?? 0).toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-2 bg-surface-raised rounded-lg px-4 py-1.5">
+            <span className="text-xs text-text-muted">Pending</span>
+            <span className="text-sm font-bold text-accent-orange">${(profile?.pending_balance ?? 0).toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-2 bg-surface-raised rounded-lg px-4 py-1.5">
+            <span className="text-xs text-text-muted">Available</span>
+            <span className="text-sm font-bold text-accent-cyan">${(profile?.approved_balance ?? 0).toFixed(2)}</span>
+          </div>
         </div>
       </div>
 

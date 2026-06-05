@@ -155,7 +155,7 @@ export default function MySubmissionsPage() {
     <>
       {preview && <VideoPreviewModal submission={preview} onClose={() => setPreview(null)} />}
 
-      <div className="p-8 max-w-3xl">
+      <div className="p-4 md:p-8 max-w-3xl">
         <div className="flex items-center gap-3 mb-6 flex-wrap">
           <h1 className="font-heading text-2xl font-bold text-text-primary">My Submissions</h1>
           <HelpTip

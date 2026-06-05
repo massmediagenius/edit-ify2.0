@@ -1,6 +1,7 @@
 import { Sidebar } from "./_components/Sidebar";
 import { TopBar } from "./_components/TopBar";
 import { GuidedTour } from "./_components/GuidedTour";
+import { MobileNav } from "./_components/MobileNav";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,9 +9,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <GuidedTour autoStart />
       <Sidebar />
       <TopBar />
-      <main className="ml-[220px] mt-14 p-6 min-h-[calc(100vh-56px)] overflow-y-auto">
+      <main className="md:ml-[220px] mt-14 min-h-[calc(100vh-56px)] overflow-y-auto pb-20 md:pb-0">
         {children}
       </main>
+      <MobileNav />
     </div>
   );
 }

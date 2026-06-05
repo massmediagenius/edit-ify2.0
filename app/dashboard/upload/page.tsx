@@ -110,7 +110,7 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 md:p-8 max-w-2xl">
       <h1 className="font-heading text-2xl font-bold text-text-primary mb-1">Submit an Edit</h1>
       <p className="text-text-secondary text-sm mb-8">
         Select the content style, upload your finished edit, and we&apos;ll review it.

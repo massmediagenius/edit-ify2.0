@@ -309,9 +309,29 @@ export default function AssetsPage() {
     <>
       {previewFile && <PreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
 
+      {/* Mobile: horizontal folder scroll */}
+      <div className="md:hidden flex gap-2 overflow-x-auto px-4 pt-4 pb-3 border-b border-border scrollbar-hide">
+        {["All", ...CONTENT_FOLDERS, ...EDITING_FOLDERS].map((folder) => (
+          <button
+            key={folder}
+            onClick={() => { setActiveFolder(folder); setPage(1); }}
+            className={cn(
+              "shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
+              activeFolder === folder
+                ? [...EDITING_FOLDERS].includes(folder)
+                  ? "bg-accent-purple/15 border-accent-purple text-accent-purple"
+                  : "bg-accent-cyan/15 border-accent-cyan text-accent-cyan"
+                : "border-border text-text-secondary bg-surface-raised"
+            )}
+          >
+            {folder}
+          </button>
+        ))}
+      </div>
+
       <div className="flex h-full">
-        {/* Sidebar */}
-        <div className="w-52 flex-shrink-0 border-r border-border p-4 overflow-y-auto">
+        {/* Desktop sidebar */}
+        <div className="hidden md:block w-52 flex-shrink-0 border-r border-border p-4 overflow-y-auto">
           {/* All */}
           <button
             onClick={() => { setActiveFolder("All"); setPage(1); }}
@@ -379,8 +399,8 @@ export default function AssetsPage() {
         </div>
 
         {/* Main */}
-        <div className="flex-1 p-6 overflow-auto">
-          <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 p-4 md:p-6 overflow-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
             <h1 className="font-heading text-xl font-bold text-text-primary flex-1">
               {activeFolder === "All" ? "All Assets" : activeFolder}
             </h1>
@@ -390,13 +410,13 @@ export default function AssetsPage() {
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder="Search files…"
-                className="bg-surface-raised border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 w-52"
+                className="bg-surface-raised border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 w-full sm:w-52"
               />
             </div>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="h-40 bg-surface-raised border border-border rounded-xl animate-pulse" />
               ))}
@@ -405,7 +425,7 @@ export default function AssetsPage() {
             <div className="text-center py-16 text-text-muted">No files in this folder yet.</div>
           ) : (
             <>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                 {paginated.map((file) => {
                   const Icon = TYPE_ICON[file.fileType];
                   return (

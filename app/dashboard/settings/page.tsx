@@ -126,7 +126,7 @@ export default function SettingsPage() {
   const inputCls = "w-full bg-surface-raised border border-border rounded-lg px-3 py-2.5 text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 focus:ring-1 focus:ring-accent-cyan/30";
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 md:p-8 max-w-2xl">
       <h1 className="font-heading text-2xl font-bold text-text-primary mb-1">Settings</h1>
       <p className="text-text-secondary text-sm mb-6">Manage your profile and payout preferences.</p>
 
