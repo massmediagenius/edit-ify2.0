@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Download } from "lucide-react";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { ReviewModal, type EditRow } from "@/app/(admin)/_components/ReviewModal";
 import { useToast, Toaster } from "@/app/(admin)/_components/Toast";
@@ -35,11 +36,13 @@ function formatSize(bytes: number | null) {
 
 export default function LibraryPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [editorFilter, setEditorFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedEdit, setSelectedEdit] = useState<EditRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const { toasts, toast } = useToast();
 
   const load = useCallback(async () => {
@@ -68,17 +71,34 @@ export default function LibraryPage() {
     );
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setSubmissions((subs as any[]).map(s => ({
+    const newSubs: Submission[] = (subs as any[]).map(s => ({
       ...s,
       profiles: { full_name: profileMap[s.editor_id] ?? null },
       content_styles: styleMap[s.content_style_id] ?? { name: "Unknown", gradient_class: "", price_per_edit: 0 },
-    })));
+    }));
+
+    setSubmissions(newSubs);
     setLoading(false);
+
+    // Generate signed URLs for all submissions in parallel
+    const urlEntries = await Promise.all(
+      newSubs.map(async (s) => {
+        try {
+          const parts = s.file_url.split("/submissions/");
+          if (parts.length > 1) {
+            const path = parts[1].split("?")[0];
+            const { data } = await supabase.storage.from("submissions").createSignedUrl(path, 3600);
+            if (data?.signedUrl) return [s.id, data.signedUrl] as [string, string];
+          }
+        } catch {}
+        return [s.id, ""] as [string, string];
+      })
+    );
+    setSignedUrls(Object.fromEntries(urlEntries));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Derive filter options from real data
   const editors = ["All", ...Array.from(new Set(submissions.map((s) => s.profiles?.full_name ?? "Unknown")))];
   const categories = ["All", ...Array.from(new Set(submissions.map((s) => s.content_styles?.name ?? "Unknown")))];
   const statuses = ["All", "approved", "pending", "revision", "re-uploaded"];
@@ -90,18 +110,8 @@ export default function LibraryPage() {
     return matchEditor && matchCategory && matchStatus;
   });
 
-  async function openReview(s: Submission) {
-    let videoUrl = s.file_url;
-    try {
-      const supabase = createClient();
-      const parts = s.file_url.split("/submissions/");
-      if (parts.length > 1) {
-        const storagePath = parts[1].split("?")[0];
-        const { data } = await supabase.storage.from("submissions").createSignedUrl(storagePath, 3600);
-        if (data?.signedUrl) videoUrl = data.signedUrl;
-      }
-    } catch {}
-
+  function openReview(s: Submission) {
+    const videoUrl = signedUrls[s.id] || s.file_url;
     setSelectedEdit({
       id: s.id,
       userId: s.editor_id,
@@ -112,6 +122,24 @@ export default function LibraryPage() {
       fileUrl: videoUrl,
       editorName: s.profiles?.full_name ?? "Unknown",
     });
+  }
+
+  async function handleDownload(s: Submission, e: React.MouseEvent) {
+    e.stopPropagation();
+    setDownloading(s.id);
+    const url = signedUrls[s.id] || s.file_url;
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = s.file_name ?? "submission.mp4";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(url, "_blank");
+    }
+    setDownloading(null);
   }
 
   async function handleApprove(id: string) {
@@ -131,10 +159,10 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <ReviewModal edit={selectedEdit} onClose={() => setSelectedEdit(null)} onApprove={handleApprove} onRevisionSent={handleRevisionSent} />
 
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <h1 className="font-heading text-xl font-bold text-text-primary flex-1">Edit Library</h1>
 
         {[
@@ -154,16 +182,37 @@ export default function LibraryPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
           {[1,2,3,4,5,6].map((i) => <div key={i} className="h-52 bg-surface-raised border border-border rounded-xl animate-pulse" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-text-muted">No edits found.</div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
           {filtered.map((s) => (
-            <GlowCard key={s.id} className="cursor-pointer" onClick={() => openReview(s)}>
-              <div className={cn("w-full h-32 bg-gradient-to-br rounded-t-xl", s.content_styles?.gradient_class ?? "from-surface to-surface-raised")} />
+            <GlowCard key={s.id} className="cursor-pointer overflow-hidden" onClick={() => openReview(s)}>
+              {/* Video thumbnail or gradient fallback */}
+              <div className="relative w-full h-32 bg-black rounded-t-xl overflow-hidden">
+                {signedUrls[s.id] ? (
+                  <video
+                    src={signedUrls[s.id]}
+                    className="w-full h-full object-cover"
+                    preload="metadata"
+                    muted
+                  />
+                ) : (
+                  <div className={cn("w-full h-full bg-gradient-to-br", s.content_styles?.gradient_class ?? "from-surface to-surface-raised")} />
+                )}
+                {/* Download button overlay */}
+                <button
+                  onClick={(e) => handleDownload(s, e)}
+                  disabled={downloading === s.id}
+                  className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white transition-colors disabled:opacity-50"
+                  title="Download"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <div className="p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", STATUS_STYLES[s.status] ?? "")}>{s.status}</span>

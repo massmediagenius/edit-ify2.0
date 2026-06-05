@@ -154,7 +154,7 @@ export default function QueuePage() {
   ];
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <ReviewModal
         edit={selectedEdit}
         onClose={() => setSelectedEdit(null)}
@@ -162,14 +162,13 @@ export default function QueuePage() {
         onRevisionSent={handleRevisionSent}
       />
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h1 className="font-heading text-xl font-bold text-text-primary">Edit Queue</h1>
           <p className="text-text-secondary text-sm mt-0.5">{rows.filter(r => r.status === "pending" || r.status === "re-uploaded").length} awaiting review</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Status filter */}
-          <div className="flex gap-1">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="flex gap-1 flex-wrap">
             {STATUS_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -189,13 +188,14 @@ export default function QueuePage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search editors, categories…"
-              className="bg-surface-raised border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 w-56"
+              className="bg-surface-raised border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 w-full sm:w-52"
             />
           </div>
         </div>
       </div>
 
-      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-surface border border-border rounded-xl overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
@@ -237,6 +237,39 @@ export default function QueuePage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden flex flex-col gap-3">
+        {loading ? (
+          [1,2,3].map(i => <div key={i} className="h-20 bg-surface-raised border border-border rounded-xl animate-pulse" />)
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-text-muted">No submissions found.</div>
+        ) : filtered.map((row) => (
+          <div
+            key={row.id}
+            onClick={() => openReview(row)}
+            className="bg-surface border border-border rounded-xl p-4 flex items-center gap-3 active:bg-surface-raised transition-colors cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-full bg-accent-purple/20 flex items-center justify-center text-xs font-bold text-accent-purple shrink-0">
+              {(row.profiles?.full_name ?? "?").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-sm font-semibold text-text-primary truncate">{row.profiles?.full_name ?? "Unknown"}</span>
+                <StatusBadge status={row.status} />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap">
+                <span>{row.content_styles?.name ?? "—"}</span>
+                <span>·</span>
+                <span>{new Date(row.submitted_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                <span>·</span>
+                <span>{formatSize(row.file_size)}</span>
+              </div>
+            </div>
+            <span className="text-xs font-medium text-accent-cyan shrink-0">Review →</span>
+          </div>
+        ))}
       </div>
 
       <Toaster toasts={toasts} />
