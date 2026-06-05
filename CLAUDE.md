@@ -1,7 +1,7 @@
 # Edit-ify — Project Context for Claude
 
 ## What This Is
-Edit-ify is a video editor freelance platform for a single client's content. Admin uploads assets and reviews editor submissions. Editors onboard, pick content styles, upload finished edits, and get paid per edit based on style. Two UX shells: Editor Dashboard (`/dashboard/*`) and Admin Panel (`/admin/*`).
+Edit-ify is a video editor freelance platform for a single client's content (David Saylor). Admin uploads assets and reviews editor submissions. Editors onboard, pick content styles, upload finished edits, and get paid per edit based on style. Two UX shells: Editor Dashboard (`/dashboard/*`) and Admin Panel (`/admin/*`).
 
 ## Stack
 - **Next.js 14** (App Router, TypeScript)
@@ -17,6 +17,12 @@ Edit-ify is a video editor freelance platform for a single client's content. Adm
 PORT=3737 npm run dev
 ```
 If stale cache (500/MODULE_NOT_FOUND errors): `npx kill-port 3737 && rm -rf .next && PORT=3737 npm run dev`
+
+## Deployment
+- **GitHub:** `https://github.com/massmediagenius/edit-ify2.0.git` (branch: `main`)
+- **Vercel:** `https://edit-ify2-0.vercel.app` — live production
+- **Vercel env vars required:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_GOOGLE_API_KEY`
+- Supabase email confirmation is **disabled** (Authentication → Providers → Email → Confirm email OFF)
 
 ## Environment Variables (`.env.local`)
 ```
@@ -44,6 +50,13 @@ All SQL scripts have been run. Key tables:
 **RLS:** All tables have RLS enabled. Admins identified via `public.is_admin()` function.
 
 **To make a user admin:** Supabase → Table Editor → profiles → set `role = 'admin'`
+
+**Crypto payout constraint:** Run `fix-payout-method-crypto.sql` in Supabase SQL editor if not already done:
+```sql
+ALTER TABLE profiles DROP CONSTRAINT profiles_payout_method_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_payout_method_check
+  CHECK (payout_method IN ('paypal', 'wise', 'bank', 'crypto'));
+```
 
 ## Google Drive Integration
 - Admin configures folder IDs in `/admin/assets` → "Configure Google Drive Folders" panel
@@ -74,42 +87,88 @@ Font families: `font-heading` (Jakarta), `font-body`/`font-sans` (Inter).
 ### Onboarding
 Steps 1–4 save to Supabase via `upsert` (not localStorage). Step 4 sets `onboarding_completed = true`.
 Middleware gates `/dashboard/**` — redirects to step-1 if not completed.
+Payout methods on step 4: PayPal, Wise, Bank Transfer, Crypto (4 options in `grid-cols-2`).
 
 ### Editor Dashboard (`/dashboard/*`)
 | Route | Notes |
 |---|---|
-| `/dashboard` | Content style cards fetched from `content_styles` table. Click card → modal with examples + brand guide. Balance stats from `profiles`. |
-| `/dashboard/upload` | Select content style → upload video → inserts into `submissions` → DB trigger creates `earnings` row |
-| `/dashboard/assets` | Unified Drive + Supabase assets. Folder sidebar, search, preview modal, download. |
-| `/dashboard/brand` | Static brand guidelines page |
-| `/dashboard/revisions` | Revision list |
-| `/dashboard/earnings` | Real earnings from DB. Pending/approved/paid breakdown. Payout request ($50 min, 14-day wait). |
-| `/dashboard/settings` | Profile + payout method (PayPal/Wise/Bank) wired to Supabase. |
+| `/dashboard` | Content styles grid (top) + earnings incentive section (below). Balance stats in TopBar. HelpTips on stats and headings. |
+| `/dashboard/upload` | Select content style → upload video → inserts into `submissions` → DB trigger creates `earnings` row. HelpTips on labels. |
+| `/dashboard/assets` | Unified Drive + Supabase assets. Mobile: horizontal folder pills + 2-col grid. Desktop: folder sidebar + 3-4 col grid. |
+| `/dashboard/brand` | Static brand guidelines. David Saylor — ALTRD and MOTION brands. "Facing murder charges at 18" (NOT "convicted"). |
+| `/dashboard/revisions` | All editor submissions with status tabs. Click card → video preview modal with signed URL. |
+| `/dashboard/earnings` | Real earnings from DB. Pending/approved/paid breakdown. Payout request ($50 min, 14-day wait). HelpTips on all stat cards. |
+| `/dashboard/settings` | Profile + payout method: PayPal/Wise/Bank/Crypto. Crypto: coin dropdown (7 options) + wallet address + warning. |
 
-Sidebar adds Upload nav item. TopBar shows real balances. Both have working logout.
+**Editor layout features:**
+- `GuidedTour` (9-step modal) auto-starts on first visit, re-triggers via `editify:start-tour` event. `localStorage` key: `editify_tour_v1`.
+- `MobileNav` — fixed bottom tab bar (Home/Submit/Assets/Submissions/Earnings), `md:hidden`
+- `Sidebar` — `hidden md:flex` desktop + mobile drawer via `editify:open-nav` event
+- `TopBar` — hamburger on mobile fires `editify:open-nav`, hides balance stats on mobile
+- Layout: `md:ml-[220px]`, `pb-20 md:pb-0`
 
 ### Admin Panel (`/admin/*`)
 | Route | Notes |
 |---|---|
-| `/admin/queue` | Fetches real submissions. Approve → updates submission + earnings status → triggers balance update. Revision → saves notes to DB. |
-| `/admin/library` | All submissions with filters. Dynamic dropdowns from DB. |
-| `/admin/assets` | Drive folder config panel + unified Drive+Supabase grid. Upload to Supabase Storage, delete Supabase files. Preview modal for both sources. Video thumbnails via `<video>` element. |
+| `/admin/queue` | Submissions table (desktop) + card list (mobile). Approve/revision via ReviewModal. |
+| `/admin/library` | Grid of all submissions. Video thumbnails via signed URLs (loaded in parallel on mount). Download button on each card thumbnail. Click card → ReviewModal. |
+| `/admin/assets` | Drive folder config panel + unified Drive+Supabase grid. Upload to Supabase Storage, delete Supabase files. |
 | `/admin/editors` | Real editor profiles from DB with submission counts and balances. |
 | `/admin/categories` | CRUD for `content_styles` table. Inline price edit, active toggle. |
 | `/admin/payouts` | Real `payout_requests`. Mark paid → decrements approved_balance. Export CSV. |
 
+**Admin layout features:**
+- `AdminMobileNav` — fixed bottom tab bar (Queue/Library/Assets/Editors/Payouts), `md:hidden`, orange accent
+- `AdminSidebar` — `hidden md:flex` desktop + mobile drawer via `editify:open-admin-nav` event
+- `AdminTopBar` — `left-0 md:left-[220px]`, hamburger on mobile, compact stats on mobile, full stats on desktop
+- Layout: `md:ml-[220px]`, `pb-24 md:pb-6`
+
 ## Key Files
 ```
-lib/supabase/client.ts        → browser Supabase client
-lib/supabase/server.ts        → server Supabase client (uses cookies)
-lib/google-drive.ts           → Drive API helpers (fetchDriveFolder, getDrivePreviewUrl, etc.)
-middleware.ts                 → auth + role routing + onboarding gate
-app/api/drive-thumb/route.ts  → server-side thumbnail proxy (fixes CORS for Drive thumbnails)
-app/login/page.tsx            → email/password login
-app/signup/page.tsx           → signup → creates profile → goes to onboarding
-supabase-schema.sql           → full DB schema (run once in Supabase SQL editor)
-fix-*.sql                     → incremental SQL fixes (already applied)
+lib/supabase/client.ts                          → browser Supabase client
+lib/supabase/server.ts                          → server Supabase client (uses cookies)
+lib/google-drive.ts                             → Drive API helpers
+middleware.ts                                   → auth + role routing + onboarding gate (null guard at top for missing env vars)
+app/api/drive-thumb/route.ts                    → server-side thumbnail proxy
+app/login/page.tsx                              → email/password login
+app/signup/page.tsx                             → signup → creates profile → onboarding
+supabase-schema.sql                             → full DB schema
+fix-payout-method-crypto.sql                    → adds 'crypto' to payout_method CHECK constraint
+
+app/dashboard/_components/GuidedTour.tsx        → 9-step animated tour modal, localStorage persistence
+app/dashboard/_components/HelpTip.tsx           → tooltip ? button component, used across dashboard pages
+app/dashboard/_components/MobileNav.tsx         → editor bottom tab bar
+app/dashboard/_components/Sidebar.tsx           → editor sidebar + mobile drawer
+app/dashboard/_components/TopBar.tsx            → editor top bar + hamburger
+
+app/(admin)/_components/AdminMobileNav.tsx      → admin bottom tab bar
+app/(admin)/_components/AdminSidebar.tsx        → admin sidebar + mobile drawer
+app/(admin)/_components/AdminTopBar.tsx         → admin top bar + hamburger
+app/(admin)/_components/ReviewModal.tsx         → approve/revision modal used in queue + library
+app/(admin)/_components/Toast.tsx               → toast notifications
 ```
+
+## Payout Methods
+`PayoutMethod = "paypal" | "wise" | "bank" | "crypto"`
+
+Crypto coins supported: USDT-TRC20, USDT-ERC20, USDC-ERC20, USDC-SOL, BTC, ETH, SOL.
+Wise currencies include PHP (Philippine Peso) for international editors.
+
+## Signed URLs for Private Videos
+`submissions` bucket is private. To get playable URL:
+```ts
+const parts = file_url.split("/submissions/");
+const path = parts[1].split("?")[0];
+const { data } = await supabase.storage.from("submissions").createSignedUrl(path, 3600);
+```
+Used in: ReviewModal, editor revisions page, admin library page (batch-loaded on mount).
+
+## Cross-Component Events
+| Event | Fired by | Handled by |
+|---|---|---|
+| `editify:start-tour` | Sidebar "Platform Tour" button | GuidedTour component |
+| `editify:open-nav` | TopBar hamburger | Sidebar mobile drawer |
+| `editify:open-admin-nav` | AdminTopBar hamburger | AdminSidebar mobile drawer |
 
 ## Known Gotchas
 - **Stale .next cache** causes MODULE_NOT_FOUND on server chunks — always `rm -rf .next` before restarting after major changes
@@ -117,11 +176,13 @@ fix-*.sql                     → incremental SQL fixes (already applied)
 - **Drive thumbnails** — only files where Drive API returns `thumbnailLink` get thumbnails; ID-only lookups return 404 for video files
 - **`framer-motion`** — import from `"framer-motion"`, not `"motion"`
 - **shadcn NOT via CLI** — all deps installed manually
-- **Wise currency list** — includes PHP (Philippine Peso) for international editors
+- **Crypto payout DB constraint** — run `fix-payout-method-crypto.sql` in Supabase if editors get a check constraint violation on selecting crypto
+- **Vercel env vars** — must be added in Vercel project settings dashboard; `.env.local` is not deployed
+- **Middleware null guard** — top of `middleware.ts` returns `NextResponse.next()` if Supabase env vars are missing, preventing MIDDLEWARE_INVOCATION_FAILED on Vercel cold starts before env vars are set
 
 ## What's Left / Not Built Yet
 - Brand page is static — no admin editor for it yet
 - Revisions detail page (`/dashboard/revisions/[id]`) is still prototype UI
 - No email notifications when edits are approved or revisions requested
 - No real-time updates (would use Supabase `subscribe`)
-- Deployment to Vercel not done yet (push to GitHub → import to Vercel → add env vars)
+- Admin categories page not yet mobile-optimized (low priority)
