@@ -6,15 +6,26 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
-type PayoutMethod = "paypal" | "wise" | "bank";
+type PayoutMethod = "paypal" | "wise" | "bank" | "crypto";
 
 const METHODS: { id: PayoutMethod; label: string }[] = [
   { id: "paypal", label: "PayPal" },
   { id: "wise", label: "Wise" },
   { id: "bank", label: "Bank Transfer" },
+  { id: "crypto", label: "Crypto" },
 ];
 
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NGN", "GHS", "KES", "PHP"];
+
+const CRYPTO_COINS = [
+  { value: "USDT-TRC20", label: "USDT — TRC-20 (Tron)" },
+  { value: "USDT-ERC20", label: "USDT — ERC-20 (Ethereum)" },
+  { value: "USDC-ERC20", label: "USDC — ERC-20 (Ethereum)" },
+  { value: "USDC-SOL",   label: "USDC — Solana (SPL)" },
+  { value: "BTC",        label: "Bitcoin (BTC)" },
+  { value: "ETH",        label: "Ethereum (ETH)" },
+  { value: "SOL",        label: "Solana (SOL)" },
+];
 
 function Field({ label, type = "text", placeholder, value, onChange }: {
   label: string; type?: string; placeholder?: string; value: string; onChange: (v: string) => void;
@@ -49,16 +60,21 @@ export default function Step4() {
   const [bankAccount, setBankAccount] = useState("");
   const [bankRouting, setBankRouting] = useState("");
   const [bankName, setBankName] = useState("");
+  // Crypto fields
+  const [cryptoAddress, setCryptoAddress] = useState("");
+  const [cryptoCoin, setCryptoCoin] = useState("USDT-TRC20");
 
   function buildPayoutDetails() {
     if (method === "paypal") return { email: ppEmail };
     if (method === "wise") return { email: wiseEmail, currency: wiseCurrency };
+    if (method === "crypto") return { address: cryptoAddress, coin: cryptoCoin };
     return { holder: bankHolder, account: bankAccount, routing: bankRouting, bank: bankName };
   }
 
   function isValid() {
     if (method === "paypal") return ppEmail.length > 0;
     if (method === "wise") return wiseEmail.length > 0;
+    if (method === "crypto") return cryptoAddress.length > 0;
     return bankHolder.length > 0 && bankAccount.length > 0 && bankRouting.length > 0 && bankName.length > 0;
   }
 
@@ -113,13 +129,13 @@ export default function Step4() {
       </div>
 
       {/* Method selector */}
-      <div className="flex gap-2 mb-2">
+      <div className="grid grid-cols-2 gap-2 mb-2">
         {METHODS.map((m) => (
           <button
             key={m.id}
             onClick={() => setMethod(m.id)}
             className={cn(
-              "flex-1 py-2 rounded-full text-sm font-medium border transition-all duration-200",
+              "py-2 rounded-full text-sm font-medium border transition-all duration-200",
               method === m.id
                 ? "bg-accent-cyan/15 border-accent-cyan text-accent-cyan"
                 : "bg-surface-raised border-border text-text-secondary hover:border-text-muted"
@@ -162,6 +178,23 @@ export default function Step4() {
               <Field label="Routing Number" placeholder="000000000" value={bankRouting} onChange={setBankRouting} />
               <div className="col-span-2">
                 <Field label="Bank Name" placeholder="e.g. Chase, Wells Fargo" value={bankName} onChange={setBankName} />
+              </div>
+            </div>
+          </motion.div>
+        )}
+        {method === "crypto" && (
+          <motion.div key="crypto" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+            <div className="pt-4 flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-text-secondary">Coin & Network</label>
+                <select value={cryptoCoin} onChange={(e) => setCryptoCoin(e.target.value)} className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent-cyan transition-colors">
+                  {CRYPTO_COINS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+                <p className="text-xs text-text-muted">Make sure your wallet supports this network — wrong-chain sends can&apos;t be recovered.</p>
+              </div>
+              <Field label="Wallet Address" placeholder="Your wallet address" value={cryptoAddress} onChange={setCryptoAddress} />
+              <div className="bg-accent-yellow/5 border border-accent-yellow/20 rounded-xl px-4 py-3 text-xs text-accent-yellow leading-relaxed">
+                Double-check your wallet address before completing setup. Payouts sent to a wrong address cannot be recovered.
               </div>
             </div>
           </motion.div>
