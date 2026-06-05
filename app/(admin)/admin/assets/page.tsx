@@ -185,7 +185,6 @@ function AdminPreviewModal({ file, onClose }: { file: UnifiedFile; onClose: () =
 
 const CONTENT_FOLDERS = ["Talking Videos", "B-roll", "Podcast", "Raw", "Private jet", "Las Vegas w/Steve", "Old Pics of David"];
 const EDITING_FOLDERS = ["FONTS", "Stock Visuals", "BG Music", "Black screen overlays"];
-const FOLDERS = ["All Assets", ...CONTENT_FOLDERS, ...EDITING_FOLDERS];
 const TYPE_ICONS: Record<AssetType, React.ElementType> = { video: Film, image: Image, audio: Music, other: File };
 const TYPE_COLORS: Record<AssetType, string> = {
   video: "text-accent-purple bg-accent-purple/10",

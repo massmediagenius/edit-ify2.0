@@ -304,7 +304,7 @@ export default function BrandPage() {
         <h2 className="font-heading text-xl font-bold text-text-primary mb-1 pl-4 border-l-2 border-accent-purple">
           The Narrative: Who He&apos;s For & What He&apos;s Against
         </h2>
-        <p className="text-text-muted text-xs mb-5 pl-4">David's content has a clear protagonist and a clear antagonist. Know the difference.</p>
+        <p className="text-text-muted text-xs mb-5 pl-4">David&apos;s content has a clear protagonist and a clear antagonist. Know the difference.</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-accent-green/5 border border-accent-green/20 rounded-xl p-5">
             <div className="text-xs font-bold uppercase tracking-widest text-accent-green mb-3">He Speaks FOR</div>
