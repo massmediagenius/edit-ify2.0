@@ -367,7 +367,7 @@ export default function AssetsPage() {
           <Loader2 className="w-4 h-4 text-accent-cyan animate-spin shrink-0" />
           Preparing your download…
         </div>
-      )}}
+      )}
 
       {/* Mobile: horizontal folder scroll */}
       <div className="md:hidden flex gap-2 overflow-x-auto px-4 pt-4 pb-3 border-b border-border scrollbar-hide">
