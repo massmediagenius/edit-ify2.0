@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-type Status = "approved" | "pending" | "revision" | "re-uploaded" | "locked";
+type Status = "approved" | "pending" | "revision" | "re-uploaded" | "locked" | "rejected";
 
 const statusConfig: Record<Status, { label: string; bg: string; text: string; extra?: string }> = {
   approved: {
@@ -30,6 +30,11 @@ const statusConfig: Record<Status, { label: string; bg: string; text: string; ex
     label: "Locked",
     bg: "bg-accent-yellow/20",
     text: "text-accent-yellow",
+  },
+  rejected: {
+    label: "Rejected",
+    bg: "bg-red-500/20",
+    text: "text-red-400",
   },
 };
 

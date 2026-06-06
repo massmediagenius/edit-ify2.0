@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
-type RowStatus = "re-uploaded" | "pending" | "approved" | "revision";
+type RowStatus = "re-uploaded" | "pending" | "approved" | "revision" | "rejected";
 
 type Submission = {
   id: string;
@@ -145,12 +145,25 @@ export default function QueuePage() {
     toast("Revision notes sent to editor.", "warning");
   }
 
+  async function handleRejected(submissionId: string, note: string) {
+    const supabase = createClient();
+    await supabase.from("submissions").update({
+      status: "rejected",
+      admin_notes: note,
+      reviewed_at: new Date().toISOString(),
+    }).eq("id", submissionId);
+
+    setRows((prev) => prev.map((r) => r.id === submissionId ? { ...r, status: "rejected" as RowStatus, admin_notes: note } : r));
+    toast("Submission rejected.", "error");
+  }
+
   const STATUS_OPTIONS: { value: RowStatus | "all"; label: string }[] = [
     { value: "all", label: "All" },
     { value: "pending", label: "Pending" },
     { value: "re-uploaded", label: "Re-uploaded" },
     { value: "revision", label: "Revision" },
     { value: "approved", label: "Approved" },
+    { value: "rejected", label: "Rejected" },
   ];
 
   return (
@@ -160,6 +173,7 @@ export default function QueuePage() {
         onClose={() => setSelectedEdit(null)}
         onApprove={handleApprove}
         onRevisionSent={handleRevisionSent}
+        onRejected={handleRejected}
       />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">

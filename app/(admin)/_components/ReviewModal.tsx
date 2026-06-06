@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, X, Check, Clock } from "lucide-react";
+import { Play, X, Check, Clock, Ban } from "lucide-react";
 import { CinemaModal } from "@/components/ui/CinemaModal";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ export type EditRow = {
   id: string;
   userId: string;
   category: string;
-  status: "approved" | "pending" | "revision" | "re-uploaded";
+  status: "approved" | "pending" | "revision" | "re-uploaded" | "rejected";
   submitted: string;
   fileSize?: string;
   fileUrl?: string;
@@ -23,14 +23,18 @@ interface ReviewModalProps {
   onClose: () => void;
   onApprove?: (id: string) => void;
   onRevisionSent?: (id: string, notes: string, timestamp: string) => void;
+  onRejected?: (id: string, note: string) => void;
 }
 
-export function ReviewModal({ edit, onClose, onApprove, onRevisionSent }: ReviewModalProps) {
+export function ReviewModal({ edit, onClose, onApprove, onRevisionSent, onRejected }: ReviewModalProps) {
   const [showRevisionPanel, setShowRevisionPanel] = useState(false);
+  const [showRejectPanel, setShowRejectPanel] = useState(false);
   const [approved, setApproved] = useState(false);
   const [noteSent, setNoteSent] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [timestamp, setTimestamp] = useState("");
   const [notes, setNotes] = useState("");
+  const [rejectionNote, setRejectionNote] = useState("");
 
   if (!edit) return null;
 
@@ -39,6 +43,7 @@ export function ReviewModal({ edit, onClose, onApprove, onRevisionSent }: Review
   function handleApprove() {
     setApproved(true);
     setShowRevisionPanel(false);
+    setShowRejectPanel(false);
     if (edit) onApprove?.(edit.id);
   }
 
@@ -53,6 +58,18 @@ export function ReviewModal({ edit, onClose, onApprove, onRevisionSent }: Review
       setTimestamp("");
       setShowRevisionPanel(false);
       setApproved(false);
+    }, 1200);
+  }
+
+  function handleReject() {
+    if (!rejectionNote.trim() || !edit) return;
+    setRejected(true);
+    onRejected?.(edit.id, rejectionNote.trim());
+    setTimeout(() => {
+      onClose();
+      setRejected(false);
+      setRejectionNote("");
+      setShowRejectPanel(false);
     }, 1200);
   }
 
@@ -126,9 +143,9 @@ export function ReviewModal({ edit, onClose, onApprove, onRevisionSent }: Review
           </button>
         )}
 
-        {!approved && (
+        {!approved && !rejected && (
           <button
-            onClick={() => setShowRevisionPanel((v) => !v)}
+            onClick={() => { setShowRevisionPanel((v) => !v); setShowRejectPanel(false); }}
             className={cn(
               "w-full py-2.5 rounded-lg border text-sm font-semibold transition-colors",
               showRevisionPanel
@@ -140,8 +157,71 @@ export function ReviewModal({ edit, onClose, onApprove, onRevisionSent }: Review
           </button>
         )}
 
+        {!approved && !rejected && (
+          <button
+            onClick={() => { setShowRejectPanel((v) => !v); setShowRevisionPanel(false); }}
+            className={cn(
+              "w-full py-2.5 rounded-lg border text-sm font-semibold transition-colors",
+              showRejectPanel
+                ? "border-red-500 bg-red-500/10 text-red-400"
+                : "border-red-500/40 text-red-400 hover:bg-red-500/10"
+            )}
+          >
+            <span className="flex items-center justify-center gap-1.5">
+              <Ban className="w-3.5 h-3.5" />
+              {showRejectPanel ? "Hide Reject Panel" : "Reject Submission"}
+            </span>
+          </button>
+        )}
+
+        {rejected && (
+          <div className="w-full py-2.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-sm font-semibold flex items-center justify-center gap-2">
+            <Ban className="w-4 h-4" /> Rejected
+          </div>
+        )}
+
         <AnimatePresence>
-          {showRevisionPanel && !approved && (
+          {showRejectPanel && !approved && !rejected && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="flex flex-col gap-3 pt-1">
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 text-xs text-red-400">
+                  The editor will see this note explaining why their submission was rejected.
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-medium text-text-secondary">Rejection Reason <span className="text-red-400">*</span></label>
+                  <textarea
+                    value={rejectionNote}
+                    onChange={(e) => setRejectionNote(e.target.value)}
+                    placeholder="Explain why this submission is being rejected..."
+                    rows={4}
+                    className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+                  />
+                </div>
+                <button
+                  onClick={handleReject}
+                  disabled={!rejectionNote.trim()}
+                  className={cn(
+                    "w-full py-2.5 rounded-lg text-sm font-semibold transition-all",
+                    rejectionNote.trim()
+                      ? "bg-red-500 text-white hover:bg-red-500/90 active:scale-[0.98]"
+                      : "bg-surface-raised text-text-muted cursor-not-allowed"
+                  )}
+                >
+                  Confirm Rejection
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showRevisionPanel && !approved && !rejected && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}

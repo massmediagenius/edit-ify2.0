@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 type Submission = {
   id: string;
   editor_id: string;
-  status: "approved" | "pending" | "revision" | "re-uploaded";
+  status: "approved" | "pending" | "revision" | "re-uploaded" | "rejected";
   file_url: string;
   file_name: string | null;
   file_size: number | null;
@@ -25,6 +25,7 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-accent-cyan/15 text-accent-cyan",
   revision: "bg-accent-orange/15 text-accent-orange",
   "re-uploaded": "bg-accent-orange/15 text-accent-orange",
+  rejected: "bg-red-500/15 text-red-400",
 };
 
 function formatSize(bytes: number | null) {
@@ -101,7 +102,7 @@ export default function LibraryPage() {
 
   const editors = ["All", ...Array.from(new Set(submissions.map((s) => s.profiles?.full_name ?? "Unknown")))];
   const categories = ["All", ...Array.from(new Set(submissions.map((s) => s.content_styles?.name ?? "Unknown")))];
-  const statuses = ["All", "approved", "pending", "revision", "re-uploaded"];
+  const statuses = ["All", "approved", "pending", "revision", "re-uploaded", "rejected"];
 
   const filtered = submissions.filter((s) => {
     const matchEditor = editorFilter === "All" || (s.profiles?.full_name ?? "Unknown") === editorFilter;
@@ -158,9 +159,16 @@ export default function LibraryPage() {
     toast("Revision notes sent.", "warning");
   }
 
+  async function handleRejected(id: string, note: string) {
+    const supabase = createClient();
+    await supabase.from("submissions").update({ status: "rejected", admin_notes: note, reviewed_at: new Date().toISOString() }).eq("id", id);
+    setSubmissions((prev) => prev.map((s) => s.id === id ? { ...s, status: "rejected" as const } : s));
+    toast("Submission rejected.", "error");
+  }
+
   return (
     <div className="p-4 md:p-6">
-      <ReviewModal edit={selectedEdit} onClose={() => setSelectedEdit(null)} onApprove={handleApprove} onRevisionSent={handleRevisionSent} />
+      <ReviewModal edit={selectedEdit} onClose={() => setSelectedEdit(null)} onApprove={handleApprove} onRevisionSent={handleRevisionSent} onRejected={handleRejected} />
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <h1 className="font-heading text-xl font-bold text-text-primary flex-1">Edit Library</h1>

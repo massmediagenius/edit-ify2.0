@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { HelpTip } from "../_components/HelpTip";
 
-type SubmissionStatus = "pending" | "approved" | "revision" | "re-uploaded";
+type SubmissionStatus = "pending" | "approved" | "revision" | "re-uploaded" | "rejected";
 
 type Submission = {
   id: string;
@@ -24,7 +24,7 @@ type Submission = {
   styleName: string;
 };
 
-type Tab = "all" | "pending" | "revision" | "approved";
+type Tab = "all" | "pending" | "revision" | "approved" | "rejected";
 
 function formatSize(bytes: number | null) {
   if (!bytes) return null;
@@ -138,10 +138,12 @@ export default function MySubmissionsPage() {
 
   const pending = submissions.filter(s => s.status === "pending" || s.status === "re-uploaded");
   const needsRevision = submissions.filter(s => s.status === "revision");
+  const rejected = submissions.filter(s => s.status === "rejected");
 
   const filtered = tab === "all" ? submissions
     : tab === "pending" ? submissions.filter(s => s.status === "pending" || s.status === "re-uploaded")
     : tab === "revision" ? submissions.filter(s => s.status === "revision")
+    : tab === "rejected" ? submissions.filter(s => s.status === "rejected")
     : submissions.filter(s => s.status === "approved");
 
   const TABS: { id: Tab; label: string; count?: number }[] = [
@@ -149,6 +151,7 @@ export default function MySubmissionsPage() {
     { id: "pending", label: "Pending Review", count: pending.length },
     { id: "revision", label: "Needs Revision", count: needsRevision.length },
     { id: "approved", label: "Approved" },
+    { id: "rejected", label: "Rejected", count: rejected.length },
   ];
 
   return (
@@ -166,6 +169,11 @@ export default function MySubmissionsPage() {
           {needsRevision.length > 0 && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-orange/15 text-accent-orange text-sm font-semibold">
               {needsRevision.length} need{needsRevision.length === 1 ? "s" : ""} revision
+            </span>
+          )}
+          {rejected.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/15 text-red-400 text-sm font-semibold">
+              {rejected.length} rejected
             </span>
           )}
         </div>
@@ -212,6 +220,7 @@ export default function MySubmissionsPage() {
                   sub.status === "revision" ? "border-l-accent-orange"
                     : sub.status === "approved" ? "border-l-accent-green"
                     : sub.status === "re-uploaded" ? "border-l-accent-purple"
+                    : sub.status === "rejected" ? "border-l-red-500"
                     : "border-l-border"
                 )}
               >
@@ -239,7 +248,13 @@ export default function MySubmissionsPage() {
                       {sub.file_size && <span>{formatSize(sub.file_size)}</span>}
                     </div>
 
-                    {sub.admin_notes && (
+                    {sub.status === "rejected" && sub.admin_notes && (
+                      <div className="mt-1 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                        <p className="text-xs font-semibold text-red-400 mb-0.5">Rejection Reason</p>
+                        <p className="text-sm text-red-300 line-clamp-3">{sub.admin_notes}</p>
+                      </div>
+                    )}
+                    {sub.status !== "rejected" && sub.admin_notes && (
                       <p className="text-sm text-text-secondary line-clamp-2">
                         <span className="text-text-muted mr-1.5">Admin:</span>
                         {sub.revision_timestamp && (
