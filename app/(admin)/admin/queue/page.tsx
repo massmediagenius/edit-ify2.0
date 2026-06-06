@@ -153,8 +153,11 @@ export default function QueuePage() {
       reviewed_at: new Date().toISOString(),
     }).eq("id", submissionId);
 
+    // Cancel earnings row → DB trigger subtracts amount from editor's pending_balance
+    await supabase.from("earnings").update({ status: "cancelled" }).eq("submission_id", submissionId);
+
     setRows((prev) => prev.map((r) => r.id === submissionId ? { ...r, status: "rejected" as RowStatus, admin_notes: note } : r));
-    toast("Submission rejected.", "error");
+    toast("Submission rejected — pending balance reversed.", "error");
   }
 
   const STATUS_OPTIONS: { value: RowStatus | "all"; label: string }[] = [

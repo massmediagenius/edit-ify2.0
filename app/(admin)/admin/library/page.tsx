@@ -162,8 +162,12 @@ export default function LibraryPage() {
   async function handleRejected(id: string, note: string) {
     const supabase = createClient();
     await supabase.from("submissions").update({ status: "rejected", admin_notes: note, reviewed_at: new Date().toISOString() }).eq("id", id);
+
+    // Cancel earnings row → DB trigger subtracts amount from editor's pending_balance
+    await supabase.from("earnings").update({ status: "cancelled" }).eq("submission_id", id);
+
     setSubmissions((prev) => prev.map((s) => s.id === id ? { ...s, status: "rejected" as const } : s));
-    toast("Submission rejected.", "error");
+    toast("Submission rejected — pending balance reversed.", "error");
   }
 
   return (
