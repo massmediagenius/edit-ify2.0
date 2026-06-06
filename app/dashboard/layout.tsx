@@ -2,6 +2,7 @@ import { Sidebar } from "./_components/Sidebar";
 import { TopBar } from "./_components/TopBar";
 import { GuidedTour } from "./_components/GuidedTour";
 import { MobileNav } from "./_components/MobileNav";
+import { SubmissionNotifier } from "./_components/SubmissionNotifier";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,6 +14,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
       <MobileNav />
+      <SubmissionNotifier />
     </div>
   );
 }
