@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
 import { GlowCard } from "@/components/ui/GlowCard";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +31,7 @@ export default function EditorsPage() {
   const [editors, setEditors] = useState<Editor[]>([]);
   const [drawerEditor, setDrawerEditor] = useState<Editor | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -65,20 +66,46 @@ export default function EditorsPage() {
     return "Not set";
   }
 
+  const filtered = editors.filter((e) =>
+    (e.full_name ?? "").toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="p-6 relative">
-      <h1 className="font-heading text-xl font-bold text-text-primary mb-1">Editors</h1>
-      <p className="text-text-secondary text-sm mb-6">{editors.length} editors on the platform</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div>
+          <h1 className="font-heading text-xl font-bold text-text-primary mb-0.5">Editors</h1>
+          <p className="text-text-secondary text-sm">
+            {search ? `${filtered.length} of ${editors.length}` : editors.length} editor{editors.length !== 1 ? "s" : ""} on the platform
+          </p>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name…"
+            className="bg-surface-raised border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50 w-full sm:w-52"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[1,2,3,4,5,6].map((i) => <div key={i} className="h-48 bg-surface-raised border border-border rounded-xl animate-pulse" />)}
         </div>
-      ) : editors.length === 0 ? (
-        <div className="text-center py-16 text-text-muted">No editors signed up yet.</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-text-muted">
+          {search ? `No editors matching "${search}".` : "No editors signed up yet."}
+        </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {editors.map((editor, i) => {
+          {filtered.map((editor, i) => {
             const initials = (editor.full_name ?? "?").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
             const avatarColor = AVATAR_COLORS[i % AVATAR_COLORS.length];
             return (
