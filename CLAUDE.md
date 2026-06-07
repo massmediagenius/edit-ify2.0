@@ -36,8 +36,8 @@ NEXT_PUBLIC_GOOGLE_API_KEY=AIzaSyBJHj113jpoL3-hMTmww8KxOa9xK3zacfs
 All SQL scripts have been run. Key tables:
 - `profiles` — extends auth.users, has `role` (editor|admin), `onboarding_completed`, `pending_balance`, `approved_balance`, `total_earned`, `payout_method`, `payout_details`
 - `content_styles` — edit categories with pricing (seeded with 5 styles)
-- `submissions` — editor uploads, status: pending|approved|revision|re-uploaded
-- `earnings` — one row per submission, auto-created by DB trigger, status: pending|approved|paid
+- `submissions` — editor uploads, status: pending|approved|revision|re-uploaded|**rejected**
+- `earnings` — one row per submission, auto-created by DB trigger, status: pending|approved|paid|**cancelled**
 - `payout_requests` — editor payout requests, 14-day scheduled pay
 - `assets` — admin-uploaded files metadata
 - `drive_folders` — maps folder names → Google Drive folder IDs
@@ -45,18 +45,16 @@ All SQL scripts have been run. Key tables:
 **DB Triggers:**
 - `on_auth_user_created` → auto-creates profile row on signup
 - `on_submission_created` → auto-creates earnings row + adds to pending_balance
-- `on_earning_status_change` → moves balances between pending/approved/paid
+- `on_earning_status_change` → moves balances between pending/approved/paid; `cancelled` subtracts from pending_balance (floors at 0)
 
 **RLS:** All tables have RLS enabled. Admins identified via `public.is_admin()` function.
 
 **To make a user admin:** Supabase → Table Editor → profiles → set `role = 'admin'`
 
-**Crypto payout constraint:** Run `fix-payout-method-crypto.sql` in Supabase SQL editor if not already done:
-```sql
-ALTER TABLE profiles DROP CONSTRAINT profiles_payout_method_check;
-ALTER TABLE profiles ADD CONSTRAINT profiles_payout_method_check
-  CHECK (payout_method IN ('paypal', 'wise', 'bank', 'crypto'));
-```
+**SQL migrations to run in Supabase (if not already done):**
+- `fix-payout-method-crypto.sql` — adds `'crypto'` to `payout_method` CHECK
+- `fix-submission-status-rejected.sql` — adds `'rejected'` to `submissions.status` CHECK
+- `fix-earnings-cancelled-on-reject.sql` — adds `'cancelled'` to `earnings.status` CHECK + extends trigger to reverse pending_balance on rejection
 
 ## Google Drive Integration
 - Admin configures folder IDs in `/admin/assets` → "Configure Google Drive Folders" panel
@@ -94,14 +92,15 @@ Payout methods on step 4: PayPal, Wise, Bank Transfer, Crypto (4 options in `gri
 |---|---|
 | `/dashboard` | Content styles grid (top) + earnings incentive section (below). Balance stats in TopBar. HelpTips on stats and headings. |
 | `/dashboard/upload` | Select content style → upload video → inserts into `submissions` → DB trigger creates `earnings` row. HelpTips on labels. |
-| `/dashboard/assets` | Unified Drive + Supabase assets. Mobile: horizontal folder pills + 2-col grid. Desktop: folder sidebar + 3-4 col grid. |
+| `/dashboard/assets` | Unified Drive + Supabase assets. Mobile: horizontal folder pills + 2-col grid. Desktop: folder sidebar + 3-4 col grid. Download shows spinner + fixed "Preparing your download…" toast while blob fetches. |
 | `/dashboard/brand` | Static brand guidelines. David Saylor — ALTRD and MOTION brands. "Facing murder charges at 18" (NOT "convicted"). |
-| `/dashboard/revisions` | All editor submissions with status tabs. Click card → video preview modal with signed URL. |
+| `/dashboard/revisions` | All editor submissions with status tabs (All/Pending/Revision/Approved/Rejected). Rejected cards have red left border + highlighted rejection reason box. Click card → video preview modal with signed URL. |
 | `/dashboard/earnings` | Real earnings from DB. Pending/approved/paid breakdown. Payout request ($50 min, 14-day wait). HelpTips on all stat cards. |
 | `/dashboard/settings` | Profile + payout method: PayPal/Wise/Bank/Crypto. Crypto: coin dropdown (7 options) + wallet address + warning. |
 
 **Editor layout features:**
 - `GuidedTour` (9-step modal) auto-starts on first visit, re-triggers via `editify:start-tour` event. `localStorage` key: `editify_tour_v1`.
+- `SubmissionNotifier` — live Supabase Realtime subscription; shows toast when admin approves/revisions/rejects a submission. Also catches up on missed notifications from last 7 days on load. Seen state in `localStorage` key `editify_notifs_seen_v1`. Auto-dismisses after 8s.
 - `MobileNav` — fixed bottom tab bar (Home/Submit/Assets/Submissions/Earnings), `md:hidden`
 - `Sidebar` — `hidden md:flex` desktop + mobile drawer via `editify:open-nav` event
 - `TopBar` — hamburger on mobile fires `editify:open-nav`, hides balance stats on mobile
@@ -110,8 +109,8 @@ Payout methods on step 4: PayPal, Wise, Bank Transfer, Crypto (4 options in `gri
 ### Admin Panel (`/admin/*`)
 | Route | Notes |
 |---|---|
-| `/admin/queue` | Submissions table (desktop) + card list (mobile). Approve/revision via ReviewModal. |
-| `/admin/library` | Grid of all submissions. Video thumbnails via signed URLs (loaded in parallel on mount). Download button on each card thumbnail. Click card → ReviewModal. |
+| `/admin/queue` | Submissions table (desktop) + card list (mobile). Approve/revision/reject via ReviewModal. Status filter includes Rejected. |
+| `/admin/library` | Grid of all submissions. Video thumbnails via signed URLs (loaded in parallel on mount). Download button on each card thumbnail. Click card → ReviewModal. Status filter includes Rejected. |
 | `/admin/assets` | Drive folder config panel + unified Drive+Supabase grid. Upload to Supabase Storage, delete Supabase files. |
 | `/admin/editors` | Real editor profiles from DB with submission counts and balances. |
 | `/admin/categories` | CRUD for `content_styles` table. Inline price edit, active toggle. |
@@ -140,11 +139,12 @@ app/dashboard/_components/HelpTip.tsx           → tooltip ? button component, 
 app/dashboard/_components/MobileNav.tsx         → editor bottom tab bar
 app/dashboard/_components/Sidebar.tsx           → editor sidebar + mobile drawer
 app/dashboard/_components/TopBar.tsx            → editor top bar + hamburger
+app/dashboard/_components/SubmissionNotifier.tsx → Supabase Realtime toasts for approved/revision/rejected events
 
 app/(admin)/_components/AdminMobileNav.tsx      → admin bottom tab bar
 app/(admin)/_components/AdminSidebar.tsx        → admin sidebar + mobile drawer
 app/(admin)/_components/AdminTopBar.tsx         → admin top bar + hamburger
-app/(admin)/_components/ReviewModal.tsx         → approve/revision modal used in queue + library
+app/(admin)/_components/ReviewModal.tsx         → approve/revision/reject modal used in queue + library; reject requires a note
 app/(admin)/_components/Toast.tsx               → toast notifications
 ```
 
@@ -170,19 +170,29 @@ Used in: ReviewModal, editor revisions page, admin library page (batch-loaded on
 | `editify:open-nav` | TopBar hamburger | Sidebar mobile drawer |
 | `editify:open-admin-nav` | AdminTopBar hamburger | AdminSidebar mobile drawer |
 
+## Rejection Flow
+When admin rejects a submission:
+1. `submissions.status` → `rejected`, `admin_notes` = rejection reason
+2. `earnings.status` → `cancelled` (same row created by on_submission_created trigger)
+3. DB trigger `on_earning_status_change` fires: `pending_balance = GREATEST(0, pending_balance - amount)`
+4. Editor sees a red toast notification via `SubmissionNotifier` (realtime + catch-up on load)
+5. Editor sees rejection reason in a red highlighted box on `/dashboard/revisions`
+
+**Requires:** `fix-submission-status-rejected.sql` + `fix-earnings-cancelled-on-reject.sql` run in Supabase.
+
 ## Known Gotchas
 - **Stale .next cache** causes MODULE_NOT_FOUND on server chunks — always `rm -rf .next` before restarting after major changes
 - **Supabase upsert vs update** — all onboarding steps use `upsert` because the trigger that auto-creates profile rows may not have been run
 - **Drive thumbnails** — only files where Drive API returns `thumbnailLink` get thumbnails; ID-only lookups return 404 for video files
 - **`framer-motion`** — import from `"framer-motion"`, not `"motion"`
 - **shadcn NOT via CLI** — all deps installed manually
-- **Crypto payout DB constraint** — run `fix-payout-method-crypto.sql` in Supabase if editors get a check constraint violation on selecting crypto
+- **DB constraint migrations** — run all three `fix-*.sql` files in Supabase SQL editor: crypto payout, rejected status, cancelled earnings
 - **Vercel env vars** — must be added in Vercel project settings dashboard; `.env.local` is not deployed
 - **Middleware null guard** — top of `middleware.ts` returns `NextResponse.next()` if Supabase env vars are missing, preventing MIDDLEWARE_INVOCATION_FAILED on Vercel cold starts before env vars are set
+- **SubmissionNotifier seen state** — stored in `localStorage` key `editify_notifs_seen_v1`; clearing localStorage will re-show recent notifications once
 
 ## What's Left / Not Built Yet
 - Brand page is static — no admin editor for it yet
 - Revisions detail page (`/dashboard/revisions/[id]`) is still prototype UI
-- No email notifications when edits are approved or revisions requested
-- No real-time updates (would use Supabase `subscribe`)
+- No email notifications (only in-app toasts via SubmissionNotifier)
 - Admin categories page not yet mobile-optimized (low priority)
