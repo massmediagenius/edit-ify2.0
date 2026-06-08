@@ -172,6 +172,7 @@ export default function QueuePage() {
   return (
     <div className="p-4 md:p-6">
       <ReviewModal
+        key={selectedEdit?.id ?? "none"}
         edit={selectedEdit}
         onClose={() => setSelectedEdit(null)}
         onApprove={handleApprove}

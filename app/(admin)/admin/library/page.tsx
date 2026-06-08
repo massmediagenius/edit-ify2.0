@@ -222,7 +222,7 @@ export default function LibraryPage() {
 
   return (
     <div className="p-4 md:p-6">
-      <ReviewModal edit={selectedEdit} onClose={() => setSelectedEdit(null)} onApprove={handleApprove} onRevisionSent={handleRevisionSent} onRejected={handleRejected} />
+      <ReviewModal key={selectedEdit?.id ?? "none"} edit={selectedEdit} onClose={() => setSelectedEdit(null)} onApprove={handleApprove} onRevisionSent={handleRevisionSent} onRejected={handleRejected} />
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <h1 className="font-heading text-xl font-bold text-text-primary flex-1">Edit Library</h1>
