@@ -44,6 +44,10 @@ export default function LibraryPage() {
   const [selectedEdit, setSelectedEdit] = useState<EditRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const { toasts, toast } = useToast();
 
   const load = useCallback(async () => {
@@ -143,6 +147,52 @@ export default function LibraryPage() {
     setDownloading(null);
   }
 
+  function toggleSelectMode() {
+    setSelectMode((prev) => !prev);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(filtered.map((s) => s.id)));
+  }
+
+  async function handleBulkDownload() {
+    if (selectedIds.size === 0 || bulkDownloading) return;
+    const toDownload = filtered.filter((s) => selectedIds.has(s.id));
+    setBulkDownloading(true);
+    setBulkProgress({ current: 0, total: toDownload.length });
+
+    for (let i = 0; i < toDownload.length; i++) {
+      const s = toDownload[i];
+      setBulkProgress({ current: i + 1, total: toDownload.length });
+      const url = signedUrls[s.id] || s.file_url;
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = s.file_name ?? "submission.mp4";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        await new Promise((r) => setTimeout(r, 400));
+      } catch {
+        window.open(url, "_blank");
+      }
+    }
+
+    setBulkDownloading(false);
+    setBulkProgress({ current: 0, total: 0 });
+    toast(`Downloaded ${toDownload.length} file${toDownload.length !== 1 ? "s" : ""}.`, "success");
+  }
+
   async function handleApprove(id: string) {
     const supabase = createClient();
     await supabase.from("submissions").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", id);
@@ -177,20 +227,50 @@ export default function LibraryPage() {
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <h1 className="font-heading text-xl font-bold text-text-primary flex-1">Edit Library</h1>
 
-        {[
-          { label: "Editor", value: editorFilter, options: editors, set: setEditorFilter },
-          { label: "Category", value: categoryFilter, options: categories, set: setCategoryFilter },
-          { label: "Status", value: statusFilter, options: statuses, set: setStatusFilter },
-        ].map(({ label, value, options, set }) => (
-          <select key={label} value={value} onChange={(e) => set(e.target.value)}
-            className="bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-text-secondary focus:outline-none focus:border-accent-cyan/50">
-            <option value="All">{label}: All</option>
-            {options.filter((o) => o !== "All").map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        ))}
-
-        <button onClick={() => { setEditorFilter("All"); setCategoryFilter("All"); setStatusFilter("All"); }}
-          className="text-xs text-text-muted hover:text-text-secondary transition-colors">Reset</button>
+        {!selectMode ? (
+          <>
+            {[
+              { label: "Editor", value: editorFilter, options: editors, set: setEditorFilter },
+              { label: "Category", value: categoryFilter, options: categories, set: setCategoryFilter },
+              { label: "Status", value: statusFilter, options: statuses, set: setStatusFilter },
+            ].map(({ label, value, options, set }) => (
+              <select key={label} value={value} onChange={(e) => set(e.target.value)}
+                className="bg-surface-raised border border-border rounded-lg px-3 py-2 text-sm text-text-secondary focus:outline-none focus:border-accent-cyan/50">
+                <option value="All">{label}: All</option>
+                {options.filter((o) => o !== "All").map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ))}
+            <button onClick={() => { setEditorFilter("All"); setCategoryFilter("All"); setStatusFilter("All"); }}
+              className="text-xs text-text-muted hover:text-text-secondary transition-colors">Reset</button>
+            <button onClick={toggleSelectMode}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-surface-raised border border-border text-text-secondary hover:text-text-primary hover:border-accent-cyan/50 transition-colors">
+              <Download className="w-3.5 h-3.5" />
+              Select
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-sm text-text-secondary">{selectedIds.size} selected</span>
+            <button onClick={selectAll}
+              className="text-sm text-accent-cyan hover:text-accent-cyan/80 transition-colors">
+              Select all ({filtered.length})
+            </button>
+            <button
+              onClick={handleBulkDownload}
+              disabled={selectedIds.size === 0 || bulkDownloading}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-accent-cyan text-background font-semibold hover:bg-accent-cyan/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {bulkDownloading
+                ? `Downloading ${bulkProgress.current}/${bulkProgress.total}…`
+                : `Download${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}`}
+            </button>
+            <button onClick={toggleSelectMode}
+              className="text-sm text-text-muted hover:text-text-secondary transition-colors">
+              Cancel
+            </button>
+          </>
+        )}
       </div>
 
       {loading ? (
@@ -201,41 +281,68 @@ export default function LibraryPage() {
         <div className="text-center py-16 text-text-muted">No edits found.</div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-          {filtered.map((s) => (
-            <GlowCard key={s.id} className="cursor-pointer overflow-hidden" onClick={() => openReview(s)}>
-              {/* Video thumbnail or gradient fallback */}
-              <div className="relative w-full h-32 bg-black rounded-t-xl overflow-hidden">
-                {signedUrls[s.id] ? (
-                  <video
-                    src={signedUrls[s.id]}
-                    className="w-full h-full object-cover"
-                    preload="metadata"
-                    muted
-                  />
-                ) : (
-                  <div className={cn("w-full h-full bg-gradient-to-br", s.content_styles?.gradient_class ?? "from-surface to-surface-raised")} />
-                )}
-                {/* Download button overlay */}
-                <button
-                  onClick={(e) => handleDownload(s, e)}
-                  disabled={downloading === s.id}
-                  className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white transition-colors disabled:opacity-50"
-                  title="Download"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", STATUS_STYLES[s.status] ?? "")}>{s.status}</span>
-                  <span className="text-xs text-text-muted">{s.content_styles?.price_per_edit ? `$${s.content_styles.price_per_edit.toFixed(2)}` : ""}</span>
+          {filtered.map((s) => {
+            const isSelected = selectedIds.has(s.id);
+            return (
+              <GlowCard
+                key={s.id}
+                className={cn("cursor-pointer overflow-hidden transition-all", isSelected && "ring-2 ring-accent-cyan")}
+                onClick={() => selectMode ? toggleSelection(s.id) : openReview(s)}
+              >
+                {/* Video thumbnail or gradient fallback */}
+                <div className="relative w-full h-32 bg-black rounded-t-xl overflow-hidden">
+                  {signedUrls[s.id] ? (
+                    <video
+                      src={signedUrls[s.id]}
+                      className="w-full h-full object-cover"
+                      preload="metadata"
+                      muted
+                    />
+                  ) : (
+                    <div className={cn("w-full h-full bg-gradient-to-br", s.content_styles?.gradient_class ?? "from-surface to-surface-raised")} />
+                  )}
+                  {/* Selection overlay */}
+                  {selectMode && (
+                    <div className={cn(
+                      "absolute inset-0 flex items-center justify-center transition-colors",
+                      isSelected ? "bg-accent-cyan/20" : "bg-black/20 hover:bg-black/10"
+                    )}>
+                      <div className={cn(
+                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
+                        isSelected ? "bg-accent-cyan border-accent-cyan" : "border-white/70 bg-black/40"
+                      )}>
+                        {isSelected && (
+                          <svg className="w-3.5 h-3.5 text-background" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Download button overlay (hidden in select mode) */}
+                  {!selectMode && (
+                    <button
+                      onClick={(e) => handleDownload(s, e)}
+                      disabled={downloading === s.id}
+                      className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white transition-colors disabled:opacity-50"
+                      title="Download"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
-                <p className="text-text-primary text-xs font-semibold truncate">{s.content_styles?.name ?? "Unknown"}</p>
-                <p className="text-text-muted text-xs mt-0.5">{s.profiles?.full_name ?? "Unknown"}</p>
-                <p className="text-text-muted text-xs">{new Date(s.submitted_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
-              </div>
-            </GlowCard>
-          ))}
+                <div className="p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize", STATUS_STYLES[s.status] ?? "")}>{s.status}</span>
+                    <span className="text-xs text-text-muted">{s.content_styles?.price_per_edit ? `$${s.content_styles.price_per_edit.toFixed(2)}` : ""}</span>
+                  </div>
+                  <p className="text-text-primary text-xs font-semibold truncate">{s.content_styles?.name ?? "Unknown"}</p>
+                  <p className="text-text-muted text-xs mt-0.5">{s.profiles?.full_name ?? "Unknown"}</p>
+                  <p className="text-text-muted text-xs">{new Date(s.submitted_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                </div>
+              </GlowCard>
+            );
+          })}
         </div>
       )}
 
